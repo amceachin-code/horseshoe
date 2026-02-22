@@ -9,7 +9,7 @@
 *! so that  predict newvar [, options]  dispatches here automatically.
 *!
 *! Author: Andrew McEachin
-*! License: MIT
+*! License: GPL-3.0
 
 program define horseshoe_p
     version 16.0

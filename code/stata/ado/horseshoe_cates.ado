@@ -6,7 +6,7 @@
 *!   2. Mata function: _hs_extract_cates(beta_all, X_test, X_sd, n_x, n_d, lo, hi)
 *!
 *! Author: Andrew McEachin
-*! License: MIT
+*! License: GPL-3.0
 
 
 * ===========================================================================

@@ -4,7 +4,7 @@ Bayesian linear regression with the horseshoe prior for Stata.
 
 ![Version](https://img.shields.io/badge/version-1.1.0-blue)
 ![Stata](https://img.shields.io/badge/Stata-16%2B-brightgreen)
-![License](https://img.shields.io/badge/license-MIT-green)
+![License](https://img.shields.io/badge/license-GPL--3.0-green)
 
 ## Overview
 
@@ -294,7 +294,7 @@ mata: _hs_extract_cates(beta_all, X_test, X_sd, n_x, n_d, lo_prob, hi_prob)
 
 ## License
 
-MIT
+GPL-3.0. See [LICENSE](LICENSE) for details.
 
 ## Author
 

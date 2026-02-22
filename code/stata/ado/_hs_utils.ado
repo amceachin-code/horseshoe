@@ -9,7 +9,7 @@
 *! and ensures bug fixes are applied in a single place.
 *!
 *! Author: Andrew McEachin
-*! License: MIT
+*! License: GPL-3.0
 
 * Safely drop any existing definition before redefining
 capture mata: mata drop _hs_quantile_pair()

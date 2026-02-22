@@ -13,7 +13,7 @@
 *! unpenalized while applying the horseshoe prior to others.
 *!
 *! Author: Andrew McEachin
-*! License: MIT
+*! License: GPL-3.0
 
 
 * ===========================================================================
