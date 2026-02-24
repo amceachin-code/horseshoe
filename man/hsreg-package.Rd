@@ -10,8 +10,8 @@ Gibbs sampler for Bayesian linear regression with the horseshoe prior (Carvalho,
 \seealso{
 Useful links:
 \itemize{
-  \item \url{https://github.com/amceachin-code/hsreg}
-  \item Report bugs at \url{https://github.com/amceachin-code/hsreg/issues}
+  \item \url{https://github.com/amceachin-code/horseshoe}
+  \item Report bugs at \url{https://github.com/amceachin-code/horseshoe/issues}
 }
 
 }
