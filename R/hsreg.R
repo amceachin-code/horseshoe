@@ -153,10 +153,24 @@ hsreg <- function(y, X,
   }
 
   # -------------------------------------------------------------------------
-  # Seed handling
+  # Seed handling — save and restore global RNG state so we don't
+  # mutate the user's session. This follows the same pattern as
+  # withr::with_seed().
   # -------------------------------------------------------------------------
   rng_state <- NULL
   if (!is.null(seed)) {
+    old_seed <- if (exists(".Random.seed", envir = globalenv())) {
+      get(".Random.seed", envir = globalenv())
+    } else {
+      NULL
+    }
+    on.exit({
+      if (is.null(old_seed)) {
+        rm(".Random.seed", envir = globalenv())
+      } else {
+        assign(".Random.seed", old_seed, envir = globalenv())
+      }
+    }, add = TRUE)
     set.seed(seed)
   }
   # Capture RNG state after set.seed (or current state if no seed)

@@ -129,6 +129,10 @@ hsreg_gibbs <- function(y, X, penalized = NULL,
   if (!is.numeric(y)) stop("'y' must be a numeric vector")
   if (!is.matrix(X) || !is.numeric(X)) stop("'X' must be a numeric matrix")
 
+  # Check for NA/NaN values — these propagate silently through crossprod
+  if (anyNA(y)) stop("'y' contains NA values. Remove or impute before fitting.")
+  if (anyNA(X)) stop("'X' contains NA values. Remove or impute before fitting.")
+
   n <- nrow(X)
   p <- ncol(X)
 

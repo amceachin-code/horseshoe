@@ -144,6 +144,52 @@ test_that("hsreg_cates errors on wrong X_test dimensions", {
 })
 
 
+test_that("hsreg_cates with scale_X = TRUE does not double-rescale", {
+  # Regression test for the double-rescaling bug (C3.1):
+  # hsreg() with scale_X = TRUE already rescales beta_draws to the original
+  # parameterization. hsreg_cates() should NOT rescale again.
+  set.seed(42)
+  n_x <- 2; n_d <- 1
+  p <- n_x + n_d + n_d * n_x  # 2 + 1 + 2 = 5
+  n <- 200
+
+  X_cov <- matrix(rnorm(n * n_x), n, n_x)
+  # Give columns very different scales
+  X_cov[, 1] <- X_cov[, 1] * 100
+  X_cov[, 2] <- X_cov[, 2] * 0.01
+
+  D <- matrix(0, n, n_d)
+  D[sample(n, n/2), 1] <- 1
+  XD <- X_cov * D[, 1]
+  X_design <- cbind(X_cov, D, XD)
+
+  beta_true <- c(0.1, -0.1, 1.0, 0.5, 0.0)
+  y <- X_design %*% beta_true + rnorm(n, sd = 0.5)
+
+  pen <- c(rep(TRUE, n_x), FALSE, rep(TRUE, n_d * n_x))
+
+  # Fit with and without scaling — CATEs should be similar
+  fit_scaled <- hsreg(y, X_design, penalized = pen, scale_X = TRUE,
+                       n_mcmc = 300, burnin = 200, verbose = FALSE, seed = 42)
+  fit_unscaled <- hsreg(y, X_design, penalized = pen, scale_X = FALSE,
+                         n_mcmc = 300, burnin = 200, verbose = FALSE, seed = 42)
+
+  X_test <- matrix(rnorm(10 * n_x), 10, n_x)
+  X_test[, 1] <- X_test[, 1] * 100
+  X_test[, 2] <- X_test[, 2] * 0.01
+
+  cates_scaled <- hsreg_cates(fit_scaled, X_test, n_x = n_x, n_d = n_d)
+  cates_unscaled <- hsreg_cates(fit_unscaled, X_test, n_x = n_x, n_d = n_d)
+
+  # CATEs should be on the same scale (not wildly different)
+  # Allow generous tolerance since different seeds/MCMC paths
+  ratio <- abs(mean(cates_scaled$cate_hat) / mean(cates_unscaled$cate_hat))
+  expect_true(ratio > 0.1 && ratio < 10,
+              info = paste("Ratio of scaled/unscaled CATE means:", ratio,
+                           "— suggests double-rescaling if very far from 1"))
+})
+
+
 test_that("hsreg_cates errors on wrong p in beta_draws", {
   fake_fit <- list(
     beta_draws = matrix(rnorm(100), 10, 10),  # p = 10

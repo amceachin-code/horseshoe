@@ -1,5 +1,5 @@
 # ===========================================================================
-# tests/testthat/test-horseshoe.R — Tests for the main estimation function
+# tests/testthat/test-hsreg.R — Tests for the main estimation function
 #                                     and S3 methods
 # ===========================================================================
 

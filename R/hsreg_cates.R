@@ -93,6 +93,9 @@ hsreg_cates <- function(fit, X_test, n_x, n_d,
   if (!is.matrix(X_test) || !is.numeric(X_test)) {
     stop("'X_test' must be a numeric matrix")
   }
+  if (anyNA(X_test)) {
+    stop("'X_test' contains NA values. Remove or impute before extracting CATEs.")
+  }
 
   n_test <- nrow(X_test)
   if (ncol(X_test) != n_x) {
@@ -106,8 +109,10 @@ hsreg_cates <- function(fit, X_test, n_x, n_d,
 
   # Extract beta draws
   if (inherits(fit, "hsreg")) {
-    beta_draws <- fit$beta_draws   # p x n_mcmc
-    if (is.null(X_sd)) X_sd <- fit$X_sd
+    # beta_draws in an hsreg object are ALREADY rescaled to the original
+    # parameterization (hsreg() divides by X_sd before storing). Do NOT
+    # pick up X_sd here — that would cause double-rescaling.
+    beta_draws <- fit$beta_draws   # p x n_mcmc (already on original scale)
   } else if (is.list(fit) && !is.null(fit$beta_draws)) {
     beta_draws <- fit$beta_draws
   } else if (is.matrix(fit)) {

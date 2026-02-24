@@ -1,8 +1,8 @@
 ---
-title: "Getting Started with horseshoe"
+title: "Getting Started with hsreg"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Getting Started with horseshoe}
+  %\VignetteIndexEntry{Getting Started with hsreg}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -16,7 +16,7 @@ knitr::opts_chunk$set(
 
 ## Introduction
 
-The **horseshoe** package provides a Gibbs sampler for Bayesian linear
+The **hsreg** package provides a Gibbs sampler for Bayesian linear
 regression with the horseshoe prior (Carvalho, Polson & Scott, 2010). The
 horseshoe prior is a continuous shrinkage prior that aggressively shrinks
 small coefficients toward zero while allowing large coefficients to remain
