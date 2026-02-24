@@ -1,5 +1,5 @@
 # ===========================================================================
-# R/horseshoe_gibbs.R — Core Gibbs sampler for horseshoe regression
+# R/hsreg_gibbs.R — Core Gibbs sampler for horseshoe regression
 #
 # Implements the auxiliary-variable Gibbs sampler from:
 #   Makalic & Schmidt (2015), "A simple sampler for the horseshoe estimator"
@@ -12,7 +12,7 @@
 # All conditional posteriors are conjugate (see @details in roxygen).
 #
 # This is the raw sampler. For a full estimation workflow with S3 methods,
-# see horseshoe().
+# see hsreg().
 # ===========================================================================
 
 
@@ -25,7 +25,7 @@
 #'
 #' This is the raw sampler that returns posterior draws directly. For a
 #' higher-level interface with S3 methods (print, summary, predict, etc.),
-#' see \code{\link{horseshoe}}.
+#' see \code{\link{hsreg}}.
 #'
 #' @param y Numeric vector of length n. The outcome variable.
 #' @param X Numeric matrix of dimension n x p. The design matrix. Include an
@@ -112,13 +112,13 @@
 #' beta_true <- c(rep(2, 5), rep(0, 45))
 #' y <- X %*% beta_true + rnorm(n)
 #'
-#' fit <- horseshoe_gibbs(y, X, n_mcmc = 200, burnin = 100, verbose = FALSE)
+#' fit <- hsreg_gibbs(y, X, n_mcmc = 200, burnin = 100, verbose = FALSE)
 #' b_hat <- rowMeans(fit$beta_draws)
 #' plot(beta_true, b_hat, xlab = "True", ylab = "Estimated")
 #' abline(0, 1, col = "red")
 #'
 #' @export
-horseshoe_gibbs <- function(y, X, penalized = NULL,
+hsreg_gibbs <- function(y, X, penalized = NULL,
                             lambda_scale = 1, tau_scale = 1,
                             n_mcmc = 1000, burnin = 500, thin = 1,
                             verbose = TRUE) {

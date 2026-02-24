@@ -1,9 +1,9 @@
 # ===========================================================================
-# tests/testthat/test-horseshoe_cates.R — Tests for CATE extraction
+# tests/testthat/test-hsreg_cates.R — Tests for CATE extraction
 # ===========================================================================
 
 
-test_that("horseshoe_cates recovers known CATEs within CI", {
+test_that("hsreg_cates recovers known CATEs within CI", {
   # DGP: 2 covariates, 2 treatment contrasts
   # Design: [X(2), D(2), X:D(4)] = 8 columns total
   # CATE for contrast 1: tau_1(x) = 1.0 + 0.5*x1 + 0.0*x2
@@ -39,14 +39,14 @@ test_that("horseshoe_cates recovers known CATEs within CI", {
   # Fit horseshoe — leave treatment main effects unpenalized
   pen <- c(rep(TRUE, n_x), rep(FALSE, n_d), rep(TRUE, n_d * n_x))
 
-  fit <- horseshoe(y, X_design, penalized = pen,
+  fit <- hsreg(y, X_design, penalized = pen,
                    n_mcmc = 500, burnin = 300, verbose = FALSE, seed = 42)
 
   # Extract CATEs at 10 test points
   n_test <- 10
   X_test <- matrix(rnorm(n_test * n_x), n_test, n_x)
 
-  cates <- horseshoe_cates(fit, X_test, n_x = n_x, n_d = n_d, level = 0.95)
+  cates <- hsreg_cates(fit, X_test, n_x = n_x, n_d = n_d, level = 0.95)
 
   expect_equal(dim(cates$cate_hat), c(n_test, n_d))
   expect_equal(dim(cates$cate_lo), c(n_test, n_d))
@@ -68,7 +68,7 @@ test_that("horseshoe_cates recovers known CATEs within CI", {
 })
 
 
-test_that("horseshoe_cates returns correct dimensions", {
+test_that("hsreg_cates returns correct dimensions", {
   # Create a fake fit with known beta_draws
   set.seed(42)
   n_x <- 3; n_d <- 2
@@ -82,7 +82,7 @@ test_that("horseshoe_cates returns correct dimensions", {
 
   X_test <- matrix(rnorm(20 * n_x), 20, n_x)
 
-  cates <- horseshoe_cates(fake_fit, X_test, n_x = n_x, n_d = n_d)
+  cates <- hsreg_cates(fake_fit, X_test, n_x = n_x, n_d = n_d)
 
   expect_equal(cates$n_test, 20)
   expect_equal(cates$n_d, 2)
@@ -91,7 +91,7 @@ test_that("horseshoe_cates returns correct dimensions", {
 })
 
 
-test_that("horseshoe_cates_from_file matches in-memory variant", {
+test_that("hsreg_cates_from_file matches in-memory variant", {
   set.seed(42)
   n_x <- 2; n_d <- 2
   p <- n_x + n_d + n_d * n_x
@@ -110,17 +110,17 @@ test_that("horseshoe_cates_from_file matches in-memory variant", {
   on.exit(unlink(tmpfile))
 
   pen <- c(rep(TRUE, n_x), rep(FALSE, n_d), rep(TRUE, n_d * n_x))
-  fit <- horseshoe(y, X_design, penalized = pen,
+  fit <- hsreg(y, X_design, penalized = pen,
                    n_mcmc = 100, burnin = 50, verbose = FALSE,
                    saving = tmpfile, seed = 42)
 
   X_test <- matrix(rnorm(10 * n_x), 10, n_x)
 
   # In-memory
-  cates_mem <- horseshoe_cates(fit, X_test, n_x = n_x, n_d = n_d)
+  cates_mem <- hsreg_cates(fit, X_test, n_x = n_x, n_d = n_d)
 
   # From file
-  cates_file <- horseshoe_cates_from_file(tmpfile, X_test,
+  cates_file <- hsreg_cates_from_file(tmpfile, X_test,
                                             n_x = n_x, n_d = n_d)
 
   expect_equal(cates_mem$cate_hat, cates_file$cate_hat, tolerance = 1e-10)
@@ -129,7 +129,7 @@ test_that("horseshoe_cates_from_file matches in-memory variant", {
 })
 
 
-test_that("horseshoe_cates errors on wrong X_test dimensions", {
+test_that("hsreg_cates errors on wrong X_test dimensions", {
   fake_fit <- list(
     beta_draws = matrix(rnorm(110), 11, 10),
     X_sd = NULL
@@ -138,13 +138,13 @@ test_that("horseshoe_cates errors on wrong X_test dimensions", {
   X_test_bad <- matrix(rnorm(20), 5, 4)  # n_x = 3, but 4 cols provided
 
   expect_error(
-    horseshoe_cates(fake_fit, X_test_bad, n_x = 3, n_d = 2),
+    hsreg_cates(fake_fit, X_test_bad, n_x = 3, n_d = 2),
     "must have 3 columns"
   )
 })
 
 
-test_that("horseshoe_cates errors on wrong p in beta_draws", {
+test_that("hsreg_cates errors on wrong p in beta_draws", {
   fake_fit <- list(
     beta_draws = matrix(rnorm(100), 10, 10),  # p = 10
     X_sd = NULL
@@ -154,7 +154,7 @@ test_that("horseshoe_cates errors on wrong p in beta_draws", {
 
   # n_x=3, n_d=2 expects p = 3+2+6 = 11, but got 10
   expect_error(
-    horseshoe_cates(fake_fit, X_test, n_x = 3, n_d = 2),
+    hsreg_cates(fake_fit, X_test, n_x = 3, n_d = 2),
     "expected 11"
   )
 })

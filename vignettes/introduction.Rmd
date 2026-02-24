@@ -48,7 +48,7 @@ The package depends only on base R (`stats`).
 ## Basic Regression Example
 
 ```{r basic-example}
-library(horseshoe)
+library(hsreg)
 
 # Simulate sparse regression data:
 # 5 true signals among 50 predictors, n = 200 observations
@@ -59,7 +59,7 @@ beta_true <- c(rep(3, 5), rep(0, 45))
 y <- X %*% beta_true + rnorm(n, sd = 1)
 
 # Fit horseshoe regression (all coefficients penalized)
-fit <- horseshoe(y, X, n_mcmc = 500, burnin = 200, verbose = FALSE, seed = 42)
+fit <- hsreg(y, X, n_mcmc = 500, burnin = 200, verbose = FALSE, seed = 42)
 print(fit)
 ```
 
@@ -86,7 +86,7 @@ penalized <- c(rep(TRUE, 10), FALSE, FALSE, rep(TRUE, 3))
 beta_true <- c(rep(0, 10), 2.0, -1.5, rep(0, 3))
 y <- X %*% beta_true + rnorm(n)
 
-fit <- horseshoe(y, X, penalized = penalized,
+fit <- hsreg(y, X, penalized = penalized,
                  n_mcmc = 500, burnin = 200, verbose = FALSE, seed = 42)
 print(fit)
 ```
@@ -173,12 +173,12 @@ y <- X_full %*% beta_true + rnorm(n, sd = 0.5)
 
 # Fit with treatment main effects unpenalized
 pen <- c(rep(TRUE, n_x), rep(FALSE, n_d), rep(TRUE, n_d * n_x))
-fit_cate <- horseshoe(y, X_full, penalized = pen,
+fit_cate <- hsreg(y, X_full, penalized = pen,
                        n_mcmc = 500, burnin = 300, verbose = FALSE, seed = 42)
 
 # Extract CATEs at 10 test points
 X_test <- matrix(rnorm(10 * n_x), 10, n_x)
-cates <- horseshoe_cates(fit_cate, X_test, n_x = n_x, n_d = n_d)
+cates <- hsreg_cates(fit_cate, X_test, n_x = n_x, n_d = n_d)
 
 # Posterior mean CATEs
 head(cates$cate_hat)
@@ -216,10 +216,10 @@ If ESS is low, increase `n_mcmc` and/or `burnin`.
 ```{r saving, eval = FALSE}
 # Save draws to disk
 tmpfile <- tempfile(fileext = ".rds")
-fit <- horseshoe(y, X, saving = tmpfile, n_mcmc = 1000, burnin = 500)
+fit <- hsreg(y, X, saving = tmpfile, n_mcmc = 1000, burnin = 500)
 
 # Later: extract CATEs from the saved file
-cates <- horseshoe_cates_from_file(tmpfile, X_test, n_x = 5, n_d = 2)
+cates <- hsreg_cates_from_file(tmpfile, X_test, n_x = 5, n_d = 2)
 ```
 
 ## References

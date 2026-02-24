@@ -1,4 +1,4 @@
 library(testthat)
-library(horseshoe)
+library(hsreg)
 
-test_check("horseshoe")
+test_check("hsreg")

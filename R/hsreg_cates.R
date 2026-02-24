@@ -1,9 +1,9 @@
 # ===========================================================================
-# R/horseshoe_cates.R — CATE extraction for multi-arm treatment designs
+# R/hsreg_cates.R — CATE extraction for multi-arm treatment designs
 #
 # Provides:
-#   horseshoe_cates()           — Extract CATEs from a fitted horseshoe object
-#   horseshoe_cates_from_file() — Extract CATEs from a saved draws file
+#   hsreg_cates()           — Extract CATEs from a fitted horseshoe object
+#   hsreg_cates_from_file() — Extract CATEs from a saved draws file
 #
 # These functions are general-purpose tools for extracting individual-level
 # conditional average treatment effects (iCATEs) from posterior beta draws
@@ -28,7 +28,7 @@
 #' \eqn{\delta_w} is the vector of treatment-covariate interaction
 #' coefficients.
 #'
-#' @param fit An object of class \code{"horseshoe"}, or a list with a
+#' @param fit An object of class \code{"hsreg"}, or a list with a
 #'   \code{beta_draws} element (p x n_mcmc matrix).
 #' @param X_test Numeric matrix of dimension n_test x n_x. Test covariate
 #'   values at which to evaluate the CATEs. These should be the raw
@@ -74,17 +74,17 @@
 #' \dontrun{
 #' # Fit horseshoe on a design with 10 covariates and 3 treatment contrasts
 #' # Design layout: [X(10), D(3), X:D(30)] = 43 columns total
-#' fit <- horseshoe(y, X_design, penalized = pen_flags,
+#' fit <- hsreg(y, X_design, penalized = pen_flags,
 #'                  n_mcmc = 1000, burnin = 500)
 #'
 #' # Extract CATEs at test points
-#' cates <- horseshoe_cates(fit, X_test = X_covariates_test,
+#' cates <- hsreg_cates(fit, X_test = X_covariates_test,
 #'                          n_x = 10, n_d = 3)
 #' head(cates$cate_hat)
 #' }
 #'
 #' @export
-horseshoe_cates <- function(fit, X_test, n_x, n_d,
+hsreg_cates <- function(fit, X_test, n_x, n_d,
                             X_sd = NULL, level = 0.95) {
 
   # -------------------------------------------------------------------------
@@ -105,7 +105,7 @@ horseshoe_cates <- function(fit, X_test, n_x, n_d,
   p_expected <- n_x + n_d + n_d * n_x
 
   # Extract beta draws
-  if (inherits(fit, "horseshoe")) {
+  if (inherits(fit, "hsreg")) {
     beta_draws <- fit$beta_draws   # p x n_mcmc
     if (is.null(X_sd)) X_sd <- fit$X_sd
   } else if (is.list(fit) && !is.null(fit$beta_draws)) {
@@ -199,7 +199,7 @@ horseshoe_cates <- function(fit, X_test, n_x, n_d,
 
 #' Extract CATEs from a Saved Draws File
 #'
-#' Loads posterior draws from a file saved by \code{horseshoe(..., saving = ...)}
+#' Loads posterior draws from a file saved by \code{hsreg(..., saving = ...)}
 #' and extracts individual-level CATEs. This is useful when the original fit
 #' object is not available but the draws were saved to disk.
 #'
@@ -213,7 +213,7 @@ horseshoe_cates <- function(fit, X_test, n_x, n_d,
 #'   deviations for rescaling. Default: NULL.
 #' @param level Numeric in (0, 1). Credible interval level. Default: 0.95.
 #'
-#' @return Same as \code{\link{horseshoe_cates}}: a list with \code{cate_hat},
+#' @return Same as \code{\link{hsreg_cates}}: a list with \code{cate_hat},
 #'   \code{cate_lo}, \code{cate_hi}, and metadata.
 #'
 #' @details
@@ -221,10 +221,10 @@ horseshoe_cates <- function(fit, X_test, n_x, n_d,
 #' followed by one column per beta coefficient. The beta columns are everything
 #' after the first three columns.
 #'
-#' @seealso \code{\link{horseshoe_cates}}, \code{\link{horseshoe}}
+#' @seealso \code{\link{hsreg_cates}}, \code{\link{hsreg}}
 #'
 #' @export
-horseshoe_cates_from_file <- function(draws_file, X_test, n_x, n_d,
+hsreg_cates_from_file <- function(draws_file, X_test, n_x, n_d,
                                        X_sd = NULL, level = 0.95) {
 
   # -------------------------------------------------------------------------
@@ -259,7 +259,7 @@ horseshoe_cates_from_file <- function(draws_file, X_test, n_x, n_d,
   # -------------------------------------------------------------------------
   # Call the main CATE extraction function
   # -------------------------------------------------------------------------
-  horseshoe_cates(
+  hsreg_cates(
     fit = beta_draws,   # pass matrix directly
     X_test = X_test,
     n_x = n_x,

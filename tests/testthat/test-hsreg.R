@@ -11,7 +11,7 @@ make_test_fit <- function(seed = 42, n = 100, p = 10, n_mcmc = 100,
   colnames(X) <- paste0("V", 1:p)
   beta_true <- c(rep(2, 3), rep(0, p - 3))
   y <- X %*% beta_true + rnorm(n)
-  horseshoe(y, X, n_mcmc = n_mcmc, burnin = burnin, verbose = FALSE,
+  hsreg(y, X, n_mcmc = n_mcmc, burnin = burnin, verbose = FALSE,
             seed = seed)
 }
 
@@ -54,7 +54,7 @@ test_that("horseshoe full round-trip works", {
 
   # summary
   s <- summary(fit)
-  expect_s3_class(s, "summary.horseshoe")
+  expect_s3_class(s, "summary.hsreg")
   expect_no_error(capture.output(print(s)))
 })
 
@@ -86,7 +86,7 @@ test_that("scale_X = TRUE vs manual scaling gives same coefficients", {
   X[, 2] <- X[, 2] * 0.01
   y <- rnorm(n)
 
-  fit_scaled <- horseshoe(y, X, scale_X = TRUE, n_mcmc = 100, burnin = 50,
+  fit_scaled <- hsreg(y, X, scale_X = TRUE, n_mcmc = 100, burnin = 50,
                            verbose = FALSE, seed = 42)
 
   # The coefficients should be on the original (unscaled) scale
@@ -109,7 +109,7 @@ test_that("saving to .rds works and can be read back", {
   X <- matrix(rnorm(n * p), n, p)
   y <- rnorm(n)
 
-  fit <- horseshoe(y, X, n_mcmc = 50, burnin = 20, saving = tmpfile,
+  fit <- hsreg(y, X, n_mcmc = 50, burnin = 20, saving = tmpfile,
                    verbose = FALSE)
 
   # File should exist
@@ -134,7 +134,7 @@ test_that("saving to .csv works", {
   X <- matrix(rnorm(n * p), n, p)
   y <- rnorm(n)
 
-  fit <- horseshoe(y, X, n_mcmc = 50, burnin = 20, saving = tmpfile,
+  fit <- hsreg(y, X, n_mcmc = 50, burnin = 20, saving = tmpfile,
                    verbose = FALSE)
 
   expect_true(file.exists(tmpfile))
@@ -220,8 +220,8 @@ test_that("horseshoe errors on invalid level", {
   set.seed(42)
   X <- matrix(rnorm(100), 20, 5)
   y <- rnorm(20)
-  expect_error(horseshoe(y, X, level = 1.5), "must be a scalar in \\(0, 1\\)")
-  expect_error(horseshoe(y, X, level = 0), "must be a scalar in \\(0, 1\\)")
+  expect_error(hsreg(y, X, level = 1.5), "must be a scalar in \\(0, 1\\)")
+  expect_error(hsreg(y, X, level = 0), "must be a scalar in \\(0, 1\\)")
 })
 
 test_that("horseshoe uses colnames from X when available", {
@@ -229,7 +229,7 @@ test_that("horseshoe uses colnames from X when available", {
   X <- matrix(rnorm(100), 20, 5)
   colnames(X) <- c("a", "b", "c", "d", "e")
   y <- rnorm(20)
-  fit <- horseshoe(y, X, n_mcmc = 30, burnin = 10, verbose = FALSE)
+  fit <- hsreg(y, X, n_mcmc = 30, burnin = 10, verbose = FALSE)
   expect_equal(names(coef(fit)), c("a", "b", "c", "d", "e"))
 })
 
@@ -237,6 +237,6 @@ test_that("horseshoe generates X1..Xp names when colnames missing", {
   set.seed(42)
   X <- matrix(rnorm(100), 20, 5)
   y <- rnorm(20)
-  fit <- horseshoe(y, X, n_mcmc = 30, burnin = 10, verbose = FALSE)
+  fit <- hsreg(y, X, n_mcmc = 30, burnin = 10, verbose = FALSE)
   expect_equal(names(coef(fit)), paste0("X", 1:5))
 })

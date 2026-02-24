@@ -1,14 +1,14 @@
 # ===========================================================================
-# R/horseshoe.R — Main estimation function and S3 methods
+# R/hsreg.R — Main estimation function and S3 methods
 #
 # Provides:
-#   horseshoe()          — Fit Bayesian linear regression with horseshoe prior
-#   print.horseshoe()    — Display results table
-#   summary.horseshoe()  — Summary with coefficient table
-#   coef.horseshoe()     — Extract coefficient vector
-#   vcov.horseshoe()     — Extract posterior VCV matrix
-#   predict.horseshoe()  — Predictions (xb, residuals, stdp)
-#   confint.horseshoe()  — Credible intervals
+#   hsreg()          — Fit Bayesian linear regression with horseshoe prior
+#   print.hsreg()    — Display results table
+#   summary.hsreg()  — Summary with coefficient table
+#   coef.hsreg()     — Extract coefficient vector
+#   vcov.hsreg()     — Extract posterior VCV matrix
+#   predict.hsreg()  — Predictions (xb, residuals, stdp)
+#   confint.hsreg()  — Credible intervals
 # ===========================================================================
 
 
@@ -20,7 +20,7 @@
 #' user-specified coefficients can receive the horseshoe prior (shrinkage)
 #' while others receive a flat (improper) prior (no shrinkage).
 #'
-#' Returns an S3 object of class \code{"horseshoe"} with full method support:
+#' Returns an S3 object of class \code{"hsreg"} with full method support:
 #' \code{print}, \code{summary}, \code{coef}, \code{vcov}, \code{predict},
 #' and \code{confint}.
 #'
@@ -50,7 +50,7 @@
 #'   \code{X1, X2, ...}. Default: NULL.
 #' @param verbose Logical. Print progress. Default: TRUE.
 #'
-#' @return An S3 object of class \code{"horseshoe"}, which is a list with:
+#' @return An S3 object of class \code{"hsreg"}, which is a list with:
 #'   \describe{
 #'     \item{coefficients}{Named numeric vector of length p: posterior means.}
 #'     \item{b_sd}{Named numeric vector: posterior standard deviations.}
@@ -92,12 +92,12 @@
 #' beta_true <- c(rep(3, 5), rep(0, 15))
 #' y <- X %*% beta_true + rnorm(n)
 #'
-#' fit <- horseshoe(y, X, n_mcmc = 200, burnin = 100, verbose = FALSE)
+#' fit <- hsreg(y, X, n_mcmc = 200, burnin = 100, verbose = FALSE)
 #' print(fit)
 #' predict(fit, type = "xb")[1:5]
 #'
 #' @export
-horseshoe <- function(y, X,
+hsreg <- function(y, X,
                       penalized = NULL,
                       lambda_scale = 1,
                       tau_scale = 1,
@@ -114,7 +114,7 @@ horseshoe <- function(y, X,
   cl <- match.call()
 
   # -------------------------------------------------------------------------
-  # Input validation (beyond what horseshoe_gibbs checks)
+  # Input validation (beyond what hsreg_gibbs checks)
   # -------------------------------------------------------------------------
   if (!is.numeric(y)) stop("'y' must be a numeric vector")
   if (!is.matrix(X) || !is.numeric(X)) stop("'X' must be a numeric matrix")
@@ -180,7 +180,7 @@ horseshoe <- function(y, X,
   # -------------------------------------------------------------------------
   # Run the Gibbs sampler
   # -------------------------------------------------------------------------
-  fit <- horseshoe_gibbs(
+  fit <- hsreg_gibbs(
     y = y, X = X, penalized = penalized,
     lambda_scale = lambda_scale, tau_scale = tau_scale,
     n_mcmc = n_mcmc, burnin = burnin, thin = thin,
@@ -310,7 +310,7 @@ horseshoe <- function(y, X,
     # Stored data (for predict)
     X = X_original, y = y,
     call = cl
-  ), class = "horseshoe")
+  ), class = "hsreg")
 
   return(result)
 }
@@ -323,18 +323,18 @@ horseshoe <- function(y, X,
 
 #' Print Method for Horseshoe Objects
 #'
-#' Displays a formatted results table mirroring the Stata \code{horseshoe}
+#' Displays a formatted results table mirroring the Stata \code{hsreg}
 #' output, including model summary statistics, convergence diagnostics, and
 #' a coefficient table with posterior means, SDs, credible intervals, and
 #' penalization status.
 #'
-#' @param x An object of class \code{"horseshoe"}.
+#' @param x An object of class \code{"hsreg"}.
 #' @param ... Additional arguments (currently ignored).
 #'
 #' @return Invisibly returns \code{x}.
 #'
 #' @export
-print.horseshoe <- function(x, ...) {
+print.hsreg <- function(x, ...) {
 
   # --- Header block ---
   cat("\n")
@@ -398,13 +398,13 @@ print.horseshoe <- function(x, ...) {
 #' with posterior means, standard deviations, credible intervals, and
 #' penalization flags. The summary object has its own print method.
 #'
-#' @param object An object of class \code{"horseshoe"}.
+#' @param object An object of class \code{"hsreg"}.
 #' @param level Numeric in (0, 1). Credible interval level. If different from
 #'   the level used at estimation, intervals are recomputed from the stored
 #'   posterior draws. Default: uses the level from the fit.
 #' @param ... Additional arguments (currently ignored).
 #'
-#' @return An object of class \code{"summary.horseshoe"} containing:
+#' @return An object of class \code{"summary.hsreg"} containing:
 #'   \describe{
 #'     \item{coef_table}{A data.frame with columns: Post.Mean, Post.SD,
 #'       Lower, Upper, Penalized.}
@@ -416,7 +416,7 @@ print.horseshoe <- function(x, ...) {
 #'   }
 #'
 #' @export
-summary.horseshoe <- function(object, level = object$level, ...) {
+summary.hsreg <- function(object, level = object$level, ...) {
 
   # Recompute CIs if level differs from original
 
@@ -458,7 +458,7 @@ summary.horseshoe <- function(object, level = object$level, ...) {
     ess_sigma2 = object$ess_sigma2,
     ess_tau2   = object$ess_tau2,
     level      = level
-  ), class = "summary.horseshoe")
+  ), class = "summary.hsreg")
 
   return(result)
 }
@@ -466,13 +466,13 @@ summary.horseshoe <- function(object, level = object$level, ...) {
 
 #' Print Method for Summary of Horseshoe Objects
 #'
-#' @param x An object of class \code{"summary.horseshoe"}.
+#' @param x An object of class \code{"summary.hsreg"}.
 #' @param ... Additional arguments (currently ignored).
 #'
 #' @return Invisibly returns \code{x}.
 #'
 #' @export
-print.summary.horseshoe <- function(x, ...) {
+print.summary.hsreg <- function(x, ...) {
   cat("\nHorseshoe prior regression summary\n\n")
   cat(sprintf("  n = %d, p = %d (%d penalized), n_mcmc = %d\n",
               x$n, x$p, x$p_pen, x$n_mcmc))
@@ -487,27 +487,27 @@ print.summary.horseshoe <- function(x, ...) {
 
 #' Extract Coefficients from a Horseshoe Object
 #'
-#' @param object An object of class \code{"horseshoe"}.
+#' @param object An object of class \code{"hsreg"}.
 #' @param ... Additional arguments (currently ignored).
 #'
 #' @return Named numeric vector of posterior mean coefficients.
 #'
 #' @export
-coef.horseshoe <- function(object, ...) {
+coef.hsreg <- function(object, ...) {
   object$coefficients
 }
 
 
 #' Extract Posterior Variance-Covariance Matrix
 #'
-#' @param object An object of class \code{"horseshoe"}.
+#' @param object An object of class \code{"hsreg"}.
 #' @param ... Additional arguments (currently ignored).
 #'
 #' @return A p x p numeric matrix: the posterior variance-covariance matrix
 #'   of the regression coefficients (computed from the MCMC draws).
 #'
 #' @export
-vcov.horseshoe <- function(object, ...) {
+vcov.hsreg <- function(object, ...) {
   object$vcov
 }
 
@@ -517,7 +517,7 @@ vcov.horseshoe <- function(object, ...) {
 #' Compute fitted values, residuals, or standard errors of the linear
 #' predictor from a fitted horseshoe model.
 #'
-#' @param object An object of class \code{"horseshoe"}.
+#' @param object An object of class \code{"hsreg"}.
 #' @param newdata Numeric matrix with p columns. New design matrix for
 #'   prediction. If \code{NULL}, uses the stored training data. Default: NULL.
 #' @param type Character string specifying the type of prediction:
@@ -534,7 +534,7 @@ vcov.horseshoe <- function(object, ...) {
 #' @return Numeric vector of predictions.
 #'
 #' @export
-predict.horseshoe <- function(object, newdata = NULL,
+predict.hsreg <- function(object, newdata = NULL,
                                type = c("xb", "residuals", "stdp"), ...) {
   type <- match.arg(type)
 
@@ -583,7 +583,7 @@ predict.horseshoe <- function(object, newdata = NULL,
 #' level used at estimation, intervals are recomputed from the stored
 #' posterior draws.
 #'
-#' @param object An object of class \code{"horseshoe"}.
+#' @param object An object of class \code{"hsreg"}.
 #' @param parm Character or integer vector specifying which parameters to
 #'   return intervals for. If \code{NULL}, all parameters are returned.
 #'   Default: NULL.
@@ -595,7 +595,7 @@ predict.horseshoe <- function(object, newdata = NULL,
 #'   named by the coefficient names.
 #'
 #' @export
-confint.horseshoe <- function(object, parm = NULL, level = object$level, ...) {
+confint.hsreg <- function(object, parm = NULL, level = object$level, ...) {
 
   # Recompute if level differs
   if (abs(level - object$level) > 1e-10) {
