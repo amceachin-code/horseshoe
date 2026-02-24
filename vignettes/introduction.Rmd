@@ -1,0 +1,235 @@
+---
+title: "Getting Started with horseshoe"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Getting Started with horseshoe}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+## Introduction
+
+The **horseshoe** package provides a Gibbs sampler for Bayesian linear
+regression with the horseshoe prior (Carvalho, Polson & Scott, 2010). The
+horseshoe prior is a continuous shrinkage prior that aggressively shrinks
+small coefficients toward zero while allowing large coefficients to remain
+unshrunk — making it well-suited for sparse high-dimensional regression
+problems.
+
+The key feature of this package is **selective penalization**: you can
+specify which coefficients receive the horseshoe prior (shrinkage) and which
+receive a flat (improper) prior (no shrinkage). This is particularly useful
+when some coefficients — such as treatment main effects in a causal inference
+design — should not be regularized.
+
+### Implementation
+
+The sampler implements Algorithm 1 from Makalic & Schmidt (2015,
+arXiv:1508.03884), using the auxiliary-variable representation of the
+half-Cauchy prior. Each iteration draws from six conjugate conditional
+posteriors:
+
+1. **β** (regression coefficients) — multivariate normal
+2. **σ²** (residual variance) — inverse-gamma
+3. **λⱼ²** (local shrinkage) — inverse-gamma (penalized coefficients only)
+4. **τ²** (global shrinkage) — inverse-gamma
+5. **νⱼ** (auxiliary for λⱼ) — inverse-gamma
+6. **ξ** (auxiliary for τ) — inverse-gamma
+
+The package depends only on base R (`stats`).
+
+## Basic Regression Example
+
+```{r basic-example}
+library(horseshoe)
+
+# Simulate sparse regression data:
+# 5 true signals among 50 predictors, n = 200 observations
+set.seed(42)
+n <- 200; p <- 50
+X <- matrix(rnorm(n * p), n, p)
+beta_true <- c(rep(3, 5), rep(0, 45))
+y <- X %*% beta_true + rnorm(n, sd = 1)
+
+# Fit horseshoe regression (all coefficients penalized)
+fit <- horseshoe(y, X, n_mcmc = 500, burnin = 200, verbose = FALSE, seed = 42)
+print(fit)
+```
+
+The output shows posterior means, standard deviations, and 95% credible
+intervals for each coefficient, along with convergence diagnostics (ESS).
+
+## Selective Penalization
+
+In many applications, you want some coefficients to be unpenalized. For
+example, in a treatment effect design, the treatment main effects should
+not be shrunk toward zero:
+
+```{r selective-pen}
+set.seed(42)
+n <- 200; p <- 15
+
+# Design: 10 covariates + 2 treatment dummies + 3 extra covariates
+X <- matrix(rnorm(n * p), n, p)
+colnames(X) <- c(paste0("x", 1:10), "treat_B", "treat_C", paste0("z", 1:3))
+
+# Treatment main effects (columns 11-12) should NOT be penalized
+penalized <- c(rep(TRUE, 10), FALSE, FALSE, rep(TRUE, 3))
+
+beta_true <- c(rep(0, 10), 2.0, -1.5, rep(0, 3))
+y <- X %*% beta_true + rnorm(n)
+
+fit <- horseshoe(y, X, penalized = penalized,
+                 n_mcmc = 500, burnin = 200, verbose = FALSE, seed = 42)
+print(fit)
+```
+
+Notice the "Penalized" column shows "No" for the treatment dummies.
+
+## Interpreting Output
+
+### Summary
+
+```{r summary}
+s <- summary(fit)
+print(s)
+```
+
+### Credible Intervals
+
+```{r confint}
+# Default level (from the fit)
+ci_95 <- confint(fit)
+head(ci_95)
+
+# Different level
+ci_90 <- confint(fit, level = 0.90)
+head(ci_90)
+```
+
+## Prediction
+
+```{r prediction}
+# Fitted values on training data
+fitted <- predict(fit, type = "xb")
+head(fitted)
+
+# Residuals
+resid <- predict(fit, type = "residuals")
+head(resid)
+
+# Standard errors of the linear predictor
+stdp <- predict(fit, type = "stdp")
+head(stdp)
+
+# Prediction on new data
+X_new <- matrix(rnorm(5 * p), 5, p)
+predict(fit, newdata = X_new, type = "xb")
+```
+
+## CATE Extraction for Multi-Arm Treatment
+
+When the design matrix follows the saturated interaction layout
+`[X(n_x), D(n_d), X:D(n_d × n_x)]`, you can extract individual-level
+CATEs for each treatment contrast:
+
+```{r cate-example}
+set.seed(42)
+n_x <- 5   # covariates
+n_d <- 2   # treatment contrasts (3 arms: reference + 2)
+p_full <- n_x + n_d + n_d * n_x  # 5 + 2 + 10 = 17
+
+n <- 300
+X_cov <- matrix(rnorm(n * n_x), n, n_x)
+
+# Treatment assignment (3 arms)
+D <- matrix(0, n, n_d)
+arms <- sample(0:2, n, replace = TRUE)
+D[arms == 1, 1] <- 1
+D[arms == 2, 2] <- 1
+
+# Interactions
+XD <- cbind(X_cov * D[, 1], X_cov * D[, 2])
+
+# Full design
+X_full <- cbind(X_cov, D, XD)
+
+# True CATEs:
+# Contrast 1: tau_1(x) = 1.0 + 0.5*x1
+# Contrast 2: tau_2(x) = -0.5 + 0.3*x3
+beta_true <- c(rep(0, n_x),          # covariate main effects
+               1.0, -0.5,             # treatment main effects (gamma)
+               0.5, rep(0, n_x-1),    # interaction arm 1 (delta_1)
+               0, 0, 0.3, rep(0, n_x-3))  # interaction arm 2 (delta_2)
+
+y <- X_full %*% beta_true + rnorm(n, sd = 0.5)
+
+# Fit with treatment main effects unpenalized
+pen <- c(rep(TRUE, n_x), rep(FALSE, n_d), rep(TRUE, n_d * n_x))
+fit_cate <- horseshoe(y, X_full, penalized = pen,
+                       n_mcmc = 500, burnin = 300, verbose = FALSE, seed = 42)
+
+# Extract CATEs at 10 test points
+X_test <- matrix(rnorm(10 * n_x), 10, n_x)
+cates <- horseshoe_cates(fit_cate, X_test, n_x = n_x, n_d = n_d)
+
+# Posterior mean CATEs
+head(cates$cate_hat)
+
+# 95% credible intervals
+head(cates$cate_lo)
+head(cates$cate_hi)
+```
+
+## Convergence Diagnostics
+
+The effective sample size (ESS) tells you how many independent draws your
+MCMC chain is equivalent to. Low ESS (< 100) suggests the chain hasn't
+mixed well:
+
+```{r diagnostics}
+# ESS for individual parameters
+fit$ess_beta[1:5]
+
+# ESS for variance parameters
+fit$ess_sigma2
+fit$ess_tau2
+
+# Minimum ESS across all parameters
+fit$ess_min
+
+# You can also use hs_ess() directly on any chain
+hs_ess(fit$sigma2_draws)
+```
+
+If ESS is low, increase `n_mcmc` and/or `burnin`.
+
+## Saving and Loading Draws
+
+```{r saving, eval = FALSE}
+# Save draws to disk
+tmpfile <- tempfile(fileext = ".rds")
+fit <- horseshoe(y, X, saving = tmpfile, n_mcmc = 1000, burnin = 500)
+
+# Later: extract CATEs from the saved file
+cates <- horseshoe_cates_from_file(tmpfile, X_test, n_x = 5, n_d = 2)
+```
+
+## References
+
+- Carvalho, C. M., Polson, N. G., & Scott, J. G. (2010). The horseshoe
+  estimator for sparse signals. *Biometrika*, 97(2), 465-480.
+- Makalic, E. & Schmidt, D. F. (2015). A simple sampler for the horseshoe
+  estimator. *arXiv:1508.03884v4*.
+- Bhattacharya, A., Chakraborty, A., & Mallick, B. K. (2016). Fast sampling
+  with Gaussian scale-mixture priors in high-dimensional regression.
+  *Biometrika*, 103(4), 985-991.
+- Geyer, C. J. (1992). Practical Markov chain Monte Carlo. *Statistical
+  Science*, 7(4), 473-483.

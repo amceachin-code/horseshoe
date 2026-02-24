@@ -1,0 +1,24 @@
+Package: horseshoe
+Title: Bayesian Linear Regression with the Horseshoe Prior
+Version: 1.0.0
+Authors@R: person("Andrew", "McEachin", role = c("aut", "cre"),
+                  email = "andrew.mceachin@gmail.com")
+Description: Gibbs sampler for Bayesian linear regression with the horseshoe
+    prior (Carvalho, Polson & Scott, 2010), supporting selective
+    per-parameter penalization control. Implements the auxiliary-variable
+    sampler from Makalic & Schmidt (2015, <doi:10.48550/arXiv.1508.03884>) with extensions
+    for unpenalized coefficient subsets (flat priors on user-specified
+    parameters), convergence diagnostics via effective sample size (ESS),
+    posterior credible intervals, CATE extraction for multi-arm treatment
+    designs, and full S3 method support (print, summary, predict, coef,
+    vcov, confint). Depends only on base R.
+License: GPL (>= 3) + file LICENSE
+URL: https://github.com/amceachin-code/horseshoe
+BugReports: https://github.com/amceachin-code/horseshoe/issues
+Encoding: UTF-8
+Depends: R (>= 3.5.0)
+Imports: stats, utils
+Suggests: testthat (>= 3.0.0), knitr, rmarkdown
+RoxygenNote: 7.3.3
+VignetteBuilder: knitr
+Config/testthat/edition: 3
