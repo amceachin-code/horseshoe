@@ -13,8 +13,8 @@ Description: Gibbs sampler for Bayesian linear regression with the horseshoe
     designs, and full S3 method support (print, summary, predict, coef,
     vcov, confint). Depends only on base R.
 License: GPL (>= 3) + file LICENSE
-URL: https://github.com/amceachin-code/hsreg
-BugReports: https://github.com/amceachin-code/hsreg/issues
+URL: https://github.com/amceachin-code/horseshoe
+BugReports: https://github.com/amceachin-code/horseshoe/issues
 Encoding: UTF-8
 Depends: R (>= 3.5.0)
 Imports: stats, utils, tools

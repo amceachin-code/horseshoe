@@ -30,8 +30,8 @@ algorithm as a Stata e-class estimation command.
 ## Installation
 
 ```r
-# Install from GitHub
-remotes::install_github("amceachin-code/horseshoe")
+# Install from GitHub (R branch)
+remotes::install_github("amceachin-code/horseshoe", ref = "r")
 ```
 
 ## Quick Example
