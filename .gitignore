@@ -1,3 +1,9 @@
+# Stata
+*.log
+*.smcl
+*.dta
+
+# R
 .Rproj.user
 .Rhistory
 .RData
@@ -5,8 +11,13 @@
 *.o
 *.so
 *.dll
-src/*.o
-src/*.so
-src/*.dll
-inst/doc
+R/src/*.o
+R/src/*.so
+R/src/*.dll
+R/inst/doc
+
+# OS
+.DS_Store
+
+# Project
 PROGRESS.md

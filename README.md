@@ -1,95 +1,38 @@
-# hsreg
+# horseshoe
 
 Bayesian Linear Regression with the Horseshoe Prior
 
-## Overview
+Gibbs sampler for Bayesian linear regression with the horseshoe prior (Makalic
+& Schmidt 2015). Features per-parameter penalization control, seed-based
+reproducibility, ESS convergence diagnostics, Cholesky fallback and NaN/Inf
+detection, and multi-arm CATE extraction. Available as both a Stata e-class
+command and an R package.
 
-**hsreg** is an R package implementing a Gibbs sampler for Bayesian
-linear regression with the horseshoe prior (Carvalho, Polson & Scott, 2010).
-It uses the auxiliary-variable sampler from Makalic & Schmidt (2015,
-arXiv:1508.03884) with extensions for:
+## Implementations
 
-- **Selective penalization** — user-specified coefficients receive the
-  horseshoe prior (shrinkage) while others receive a flat prior (no
-  shrinkage). Leave treatment main effects unpenalized while shrinking
-  high-dimensional interactions.
-- **Convergence diagnostics** — effective sample size (ESS) for every
-  parameter via the initial positive sequence estimator (Geyer 1992).
-- **Numerical hardening** — Cholesky fallback with ridge adjustment for
-  near-singular designs, NaN/Inf divergence detection with informative
-  error messages.
-- **CATE extraction** — posterior CATEs with credible intervals for
-  multi-arm treatment designs with treatment-covariate interactions.
-- **Full S3 support** — `print`, `summary`, `coef`, `vcov`, `predict`,
-  `confint` methods that work like `lm`/`glm`.
-- **Zero external dependencies** — depends only on base R (`stats`).
+| Language | Folder | Package Name | Install |
+|----------|--------|-------------|---------|
+| **R** | [`R/`](R/) | `hsreg` | `remotes::install_github("amceachin-code/horseshoe", subdir = "R")` |
+| **Stata** | [`stata/`](stata/) | `horseshoe` | Copy `ado/` files to adopath |
 
-A companion Stata implementation (`horseshoe.ado`) provides the same
-algorithm as a Stata e-class estimation command.
+Both implementations use the same algorithm -- the auxiliary-variable sampler
+from Makalic & Schmidt (2015, arXiv:1508.03884) -- and produce statistically
+equivalent results.
 
-## Installation
+## Features
 
-```r
-# Install from GitHub (R branch)
-remotes::install_github("amceachin-code/horseshoe", ref = "r")
-```
-
-## Quick Example
-
-```r
-library(hsreg)
-
-# Sparse regression: 5 true signals in 50 predictors
-set.seed(42)
-n <- 200; p <- 50
-X <- matrix(rnorm(n * p), n, p)
-beta_true <- c(rep(3, 5), rep(0, 45))
-y <- X %*% beta_true + rnorm(n)
-
-# Fit with horseshoe prior
-fit <- hsreg(y, X, n_mcmc = 1000, burnin = 500, seed = 42)
-print(fit)
-
-# Predictions and credible intervals
-predict(fit, type = "xb")[1:5]
-confint(fit)[1:5, ]
-```
-
-### Selective Penalization
-
-```r
-# Treatment main effects (cols 11-12) unpenalized, everything else penalized
-penalized <- c(rep(TRUE, 10), FALSE, FALSE, rep(TRUE, 38))
-fit <- hsreg(y, X, penalized = penalized, n_mcmc = 1000, burnin = 500)
-```
-
-### CATE Extraction
-
-```r
-# Extract individual CATEs for multi-arm treatment design
-# Design layout: [X(n_x), D(n_d), X:D(n_d * n_x)]
-cates <- hsreg_cates(fit, X_test, n_x = 10, n_d = 4)
-head(cates$cate_hat)  # posterior mean CATEs
-head(cates$cate_lo)   # lower 95% CI
-head(cates$cate_hi)   # upper 95% CI
-```
-
-## Public API
-
-| Function | Description |
-|----------|-------------|
-| `hsreg()` | Fit Bayesian linear regression with horseshoe prior |
-| `hsreg_gibbs()` | Raw Gibbs sampler (advanced) |
-| `hsreg_cates()` | Extract CATEs from fitted object |
-| `hsreg_cates_from_file()` | Extract CATEs from saved draws file |
-| `hs_ess()` | Effective sample size for MCMC chain |
-| `hs_quantile_pair()` | Paired quantile (single sort) |
-| `print.hsreg()` | Display results table |
-| `summary.hsreg()` | Summarize results |
-| `coef.hsreg()` | Extract coefficient vector |
-| `vcov.hsreg()` | Extract posterior VCV |
-| `predict.hsreg()` | Predictions (xb, residuals, stdp) |
-| `confint.hsreg()` | Credible intervals |
+- **Selective penalization** -- horseshoe shrinkage on user-specified parameters,
+  flat priors on the rest. Leave treatment main effects unpenalized while
+  regularizing high-dimensional interactions.
+- **Convergence diagnostics** -- effective sample size (ESS) via the initial
+  positive sequence estimator (Geyer 1992) for every parameter.
+- **Numerical hardening** -- Cholesky fallback with ridge adjustment for
+  near-singular designs, NaN/Inf divergence detection.
+- **CATE extraction** -- posterior conditional average treatment effects with
+  credible intervals for multi-arm treatment designs.
+- **Full postestimation support** -- R: `print`, `summary`, `coef`, `vcov`,
+  `predict`, `confint`. Stata: `predict`, `test`, `lincom`, `margins`.
+- **Zero external dependencies** -- R: base R + `stats`. Stata: base Stata + Mata.
 
 ## References
 
@@ -97,9 +40,6 @@ head(cates$cate_hi)   # upper 95% CI
   estimator for sparse signals. *Biometrika*, 97(2), 465-480.
 - Makalic, E. & Schmidt, D. F. (2015). A simple sampler for the horseshoe
   estimator. *arXiv:1508.03884v4*.
-- Bhattacharya, A., Chakraborty, A., & Mallick, B. K. (2016). Fast sampling
-  with Gaussian scale-mixture priors in high-dimensional regression.
-  *Biometrika*, 103(4), 985-991.
 - Geyer, C. J. (1992). Practical Markov chain Monte Carlo. *Statistical
   Science*, 7(4), 473-483.
 
