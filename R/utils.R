@@ -223,10 +223,7 @@ hs_quantile_pair <- function(v, lo_prob, hi_prob) {
   p <- nrow(beta_draws)
 
   # ESS for each beta_j
-  ess_beta <- numeric(p)
-  for (j in seq_len(p)) {
-    ess_beta[j] <- hs_ess(beta_draws[j, ])
-  }
+  ess_beta <- apply(beta_draws, 1, hs_ess)
 
   # ESS for sigma2 and tau2
   ess_sigma2 <- hs_ess(sigma2_draws)

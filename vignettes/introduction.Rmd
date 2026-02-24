@@ -47,7 +47,7 @@ The package depends only on base R (`stats`).
 
 ## Basic Regression Example
 
-```{r basic-example}
+```{r basic-example, cache = TRUE}
 library(hsreg)
 
 # Simulate sparse regression data:
@@ -72,7 +72,7 @@ In many applications, you want some coefficients to be unpenalized. For
 example, in a treatment effect design, the treatment main effects should
 not be shrunk toward zero:
 
-```{r selective-pen}
+```{r selective-pen, cache = TRUE}
 set.seed(42)
 n <- 200; p <- 15
 
@@ -140,7 +140,7 @@ When the design matrix follows the saturated interaction layout
 `[X(n_x), D(n_d), X:D(n_d × n_x)]`, you can extract individual-level
 CATEs for each treatment contrast:
 
-```{r cate-example}
+```{r cate-example, cache = TRUE}
 set.seed(42)
 n_x <- 5   # covariates
 n_d <- 2   # treatment contrasts (3 arms: reference + 2)
