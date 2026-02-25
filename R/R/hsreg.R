@@ -33,9 +33,10 @@
 #'   local shrinkage. Default: 1.
 #' @param tau_scale Positive scalar. Scale of the half-Cauchy prior on
 #'   global shrinkage. Default: 1.
-#' @param n_mcmc Positive integer. Number of post-burnin MCMC draws. Default: 1000.
-#' @param burnin Non-negative integer. Burnin iterations. Default: 500.
-#' @param thin Positive integer. Thinning interval. Default: 1.
+#' @param n_mcmc Positive integer. Number of post-burnin MCMC draws per chain.
+#'   When \code{chains > 1}, total draws = \code{chains * n_mcmc}. Default: 1000.
+#' @param burnin Non-negative integer. Burnin iterations (per chain). Default: 500.
+#' @param thin Positive integer. Thinning interval (per chain). Default: 1.
 #' @param level Numeric in (0, 1). Credible interval level. Default: 0.95.
 #' @param scale_X Logical. If \code{TRUE}, standardize columns of X to unit
 #'   variance before sampling, then rescale coefficients back to the original
@@ -49,6 +50,17 @@
 #'   the coefficients. If \code{NULL}, uses \code{colnames(X)} or generates
 #'   \code{X1, X2, ...}. Default: NULL.
 #' @param verbose Logical. Print progress. Default: TRUE.
+#' @param chains Positive integer. Number of independent MCMC chains. Each
+#'   chain runs a full \code{n_mcmc} post-burnin draws. When \code{chains = 1}
+#'   (default), behavior is bit-for-bit identical to single-chain mode. Per-chain
+#'   seeds are derived from the master Mersenne Twister stream (not L'Ecuyer-CMRG),
+#'   which is sufficient for typical use (2-10 chains). Default: 1.
+#' @param cores Positive integer or \code{NULL}. Number of parallel workers for
+#'   multi-chain runs. If \code{NULL} (default), auto-detects as
+#'   \code{max(1, floor(detectCores(logical = FALSE) / 2))}, capped at
+#'   \code{chains}. Uses PSOCK clusters for cross-platform compatibility
+#'   (works on Windows, macOS, and Linux). When \code{cores = 1}, chains run
+#'   sequentially with no parallel overhead. Default: NULL.
 #'
 #' @return An S3 object of class \code{"hsreg"}, which is a list with:
 #'   \describe{
@@ -72,6 +84,15 @@
 #'     \item{varnames}{Character vector: coefficient names.}
 #'     \item{seed, rng_state}{Seed and RNG state for reproducibility.}
 #'     \item{n_chol_fallback}{Integer: Cholesky ridge fallback count.}
+#'     \item{chains}{Integer: number of chains run.}
+#'     \item{cores}{Integer: number of parallel workers used.}
+#'     \item{total_draws}{Integer: total MCMC draws (\code{chains * n_mcmc}).}
+#'     \item{rhat_beta}{Named numeric vector: Gelman-Rubin R-hat per coefficient.
+#'       \code{NULL} if \code{chains = 1}.}
+#'     \item{rhat_sigma2, rhat_tau2}{Scalar R-hat for variance parameters.
+#'       \code{NULL} if \code{chains = 1}.}
+#'     \item{rhat_max}{Scalar: maximum R-hat across all parameters.
+#'       \code{NULL} if \code{chains = 1}.}
 #'     \item{ess_beta}{Named numeric vector: ESS per coefficient.}
 #'     \item{ess_sigma2, ess_tau2, ess_min}{ESS diagnostics.}
 #'     \item{X, y}{Stored data (for \code{predict}).}
@@ -109,7 +130,9 @@ hsreg <- function(y, X,
                       seed = NULL,
                       saving = NULL,
                       varnames = NULL,
-                      verbose = TRUE) {
+                      verbose = TRUE,
+                      chains = 1,
+                      cores = NULL) {
 
   cl <- match.call()
 
@@ -137,6 +160,27 @@ hsreg <- function(y, X,
   if (!is.logical(penalized) || length(penalized) != p) {
     stop("'penalized' must be a logical vector of length ncol(X) (", p, ")")
   }
+
+  # -------------------------------------------------------------------------
+  # Validate chains / cores
+  # -------------------------------------------------------------------------
+  if (!is.numeric(chains) || length(chains) != 1L || chains < 1L) {
+    stop("'chains' must be a positive integer, got ", chains)
+  }
+  chains <- as.integer(chains)
+
+  if (is.null(cores)) {
+    # Auto-detect: use half the physical cores, at least 1, capped at chains
+    detected <- parallel::detectCores(logical = FALSE)
+    if (is.na(detected)) detected <- 1L
+    cores <- max(1L, floor(detected / 2))
+    cores <- min(cores, chains)
+  }
+  if (!is.numeric(cores) || length(cores) != 1L || cores < 1L) {
+    stop("'cores' must be a positive integer, got ", cores)
+  }
+  cores <- as.integer(cores)
+  cores <- min(cores, chains)
 
   # -------------------------------------------------------------------------
   # Variable names
@@ -192,21 +236,112 @@ hsreg <- function(y, X,
   }
 
   # -------------------------------------------------------------------------
-  # Run the Gibbs sampler
+  # Run the Gibbs sampler (single-chain or multi-chain)
   # -------------------------------------------------------------------------
-  fit <- hsreg_gibbs(
-    y = y, X = X, penalized = penalized,
-    lambda_scale = lambda_scale, tau_scale = tau_scale,
-    n_mcmc = n_mcmc, burnin = burnin, thin = thin,
-    verbose = verbose
-  )
+
+  if (chains == 1L) {
+    # ----- Single chain: bit-for-bit identical to original code path -----
+    fit <- hsreg_gibbs(
+      y = y, X = X, penalized = penalized,
+      lambda_scale = lambda_scale, tau_scale = tau_scale,
+      n_mcmc = n_mcmc, burnin = burnin, thin = thin,
+      verbose = verbose
+    )
+
+    beta_draws    <- fit$beta_draws       # p x n_mcmc
+    sigma2_draws  <- fit$sigma2_draws     # n_mcmc vector
+    tau2_draws    <- fit$tau2_draws       # n_mcmc vector
+    lambda2_draws <- fit$lambda2_draws    # p_pen x n_mcmc
+    pen_idx       <- fit$pen_idx
+    free_idx      <- fit$free_idx
+    n_chol_fallback <- fit$n_chol_fallback
+
+    # R-hat: not computable from a single chain
+    rhat_beta   <- NULL
+    rhat_sigma2 <- NULL
+    rhat_tau2   <- NULL
+    rhat_max    <- NULL
+
+  } else {
+    # ----- Multi-chain: generate per-chain seeds from master RNG -----
+    chain_seeds <- sample.int(.Machine$integer.max, chains)
+
+    # Capture the hsreg_gibbs function object for export to workers.
+    # We export the function object directly rather than using
+    # loadNamespace("hsreg") so this works during devtools::load_all().
+    gibbs_fn <- hsreg_gibbs
+
+    # Worker function: runs one chain with its own seed
+    run_one_chain <- function(chain_id) {
+      set.seed(chain_seeds[chain_id])
+      gibbs_fn(
+        y = y, X = X, penalized = penalized,
+        lambda_scale = lambda_scale, tau_scale = tau_scale,
+        n_mcmc = n_mcmc, burnin = burnin, thin = thin,
+        verbose = FALSE
+      )
+    }
+
+    if (cores > 1L) {
+      # --- Parallel dispatch via PSOCK cluster (cross-platform) ---
+      if (verbose) {
+        message(sprintf("  [Horseshoe] Launching %d chains on %d cores...",
+                        chains, cores))
+      }
+      cl_par <- parallel::makeCluster(cores)
+      on.exit(parallel::stopCluster(cl_par), add = TRUE)
+
+      # Export all objects needed by the worker function
+      parallel::clusterExport(cl_par,
+        varlist = c("chain_seeds", "gibbs_fn", "y", "X", "penalized",
+                     "lambda_scale", "tau_scale", "n_mcmc", "burnin", "thin"),
+        envir = environment()
+      )
+
+      chain_fits <- parallel::parLapply(cl_par, seq_len(chains), run_one_chain)
+
+    } else {
+      # --- Sequential multi-chain (cores == 1) ---
+      chain_fits <- vector("list", chains)
+      for (cc in seq_len(chains)) {
+        if (verbose) {
+          message(sprintf("  [Horseshoe] Running chain %d / %d...", cc, chains))
+        }
+        chain_fits[[cc]] <- run_one_chain(cc)
+      }
+    }
+
+    # ----- R-hat diagnostics (computed BEFORE combining to avoid double memory) -----
+    rhat_beta <- .hs_rhat_vector(lapply(chain_fits, "[[", "beta_draws"))
+    names(rhat_beta) <- varnames
+
+    rhat_sigma2 <- .hs_rhat(lapply(chain_fits, "[[", "sigma2_draws"))
+    rhat_tau2   <- .hs_rhat(lapply(chain_fits, "[[", "tau2_draws"))
+    rhat_max    <- max(c(rhat_beta, rhat_sigma2, rhat_tau2), na.rm = TRUE)
+
+    if (rhat_max > 1.1 && verbose) {
+      warning("Max R-hat = ", round(rhat_max, 3),
+              " (> 1.1). Chains may not have converged. ",
+              "Consider increasing n_mcmc or burnin.")
+    }
+
+    # ----- Combine draws across chains -----
+    beta_draws    <- do.call(cbind, lapply(chain_fits, "[[", "beta_draws"))
+    sigma2_draws  <- unlist(lapply(chain_fits, "[[", "sigma2_draws"))
+    tau2_draws    <- unlist(lapply(chain_fits, "[[", "tau2_draws"))
+    lambda2_draws <- do.call(cbind, lapply(chain_fits, "[[", "lambda2_draws"))
+
+    # Metadata from first chain (all chains share the same structure)
+    pen_idx   <- chain_fits[[1]]$pen_idx
+    free_idx  <- chain_fits[[1]]$free_idx
+    n_chol_fallback <- sum(vapply(chain_fits, "[[", numeric(1), "n_chol_fallback"))
+  }
+
+  total_draws <- ncol(beta_draws)
 
   # -------------------------------------------------------------------------
-  # Post-process: compute posterior summaries
+  # Post-process: compute posterior summaries (works on combined draws)
   # -------------------------------------------------------------------------
-  beta_draws   <- fit$beta_draws       # p x n_mcmc
-  sigma2_draws <- fit$sigma2_draws     # n_mcmc vector
-  tau2_draws   <- fit$tau2_draws       # n_mcmc vector
 
   # If scaled: rescale beta draws back to original parameterization
   # beta_orig = beta_scaled / X_sd
@@ -240,14 +375,14 @@ hsreg <- function(y, X,
   names(b_upper) <- varnames
 
   # Posterior variance-covariance matrix
-  # V = Var(beta_draws^T) where beta_draws is p x n_mcmc
+  # V = Var(beta_draws^T) where beta_draws is p x total_draws
   # stats::var expects observations in rows, variables in columns
   V <- stats::var(t(beta_draws))
   rownames(V) <- varnames
   colnames(V) <- varnames
 
   # -------------------------------------------------------------------------
-  # Convergence diagnostics
+  # Convergence diagnostics (ESS on combined draws)
   # -------------------------------------------------------------------------
   diag <- .hs_convergence_diagnostics(beta_draws, sigma2_draws, tau2_draws)
   names(diag$ess_beta) <- varnames
@@ -263,7 +398,7 @@ hsreg <- function(y, X,
   # -------------------------------------------------------------------------
   if (!is.null(saving)) {
     draws_df <- data.frame(
-      draw = seq_len(n_mcmc),
+      draw = seq_len(total_draws),
       sigma2 = sigma2_draws,
       tau2 = tau2_draws,
       t(beta_draws)
@@ -296,26 +431,37 @@ hsreg <- function(y, X,
     tau2          = mean(tau2_draws),
 
     # Full posterior draws (for custom analysis)
-    beta_draws    = beta_draws,        # p x n_mcmc (rescaled if scale_X)
+    beta_draws    = beta_draws,        # p x total_draws (rescaled if scale_X)
     sigma2_draws  = sigma2_draws,
     tau2_draws    = tau2_draws,
-    lambda2_draws = fit$lambda2_draws,
+    lambda2_draws = lambda2_draws,
 
     # Penalization info
-    pen_idx       = fit$pen_idx,
-    free_idx      = fit$free_idx,
+    pen_idx       = pen_idx,
+    free_idx      = free_idx,
     penalized     = penalized,
 
     # Metadata
-    n = n, p = p, p_pen = length(fit$pen_idx),
+    n = n, p = p, p_pen = length(pen_idx),
     n_mcmc = n_mcmc, burnin = burnin, thin = thin,
     level = level,
     lambda_scale = lambda_scale, tau_scale = tau_scale,
     X_sd = X_sd, varnames = varnames,
     seed = seed, rng_state = rng_state,
-    n_chol_fallback = fit$n_chol_fallback,
+    n_chol_fallback = n_chol_fallback,
 
-    # Convergence diagnostics
+    # Multi-chain metadata
+    chains      = chains,
+    cores       = cores,
+    total_draws = total_draws,
+
+    # R-hat diagnostics (NULL for single chain)
+    rhat_beta   = rhat_beta,
+    rhat_sigma2 = rhat_sigma2,
+    rhat_tau2   = rhat_tau2,
+    rhat_max    = rhat_max,
+
+    # Convergence diagnostics (ESS on combined draws)
     ess_beta   = diag$ess_beta,
     ess_sigma2 = diag$ess_sigma2,
     ess_tau2   = diag$ess_tau2,
@@ -358,8 +504,17 @@ print.hsreg <- function(x, ...) {
       sprintf("Predictors      = %8d\n", x$p))
   cat(format("", width = 55),
       sprintf("Penalized       = %8d\n", x$p_pen))
-  cat(format("", width = 55),
-      sprintf("MCMC draws      = %8d\n", x$n_mcmc))
+  if (x$chains > 1L) {
+    cat(format("", width = 55),
+        sprintf("Chains          = %8d\n", x$chains))
+    cat(format("", width = 55),
+        sprintf("Draws/chain     = %8d\n", x$n_mcmc))
+    cat(format("", width = 55),
+        sprintf("Total draws     = %8d\n", x$total_draws))
+  } else {
+    cat(format("", width = 55),
+        sprintf("MCMC draws      = %8d\n", x$n_mcmc))
+  }
   cat("\n")
 
   # --- Hyperparameter summaries ---
@@ -371,6 +526,13 @@ print.hsreg <- function(x, ...) {
   cat(sprintf("Min effective sample size = %9.0f\n", x$ess_min))
   cat(sprintf("ESS for sigma^2           = %9.0f\n", x$ess_sigma2))
   cat(sprintf("ESS for tau^2             = %9.0f\n", x$ess_tau2))
+
+  if (!is.null(x$rhat_max)) {
+    cat(sprintf("Max R-hat                 = %9.3f\n", x$rhat_max))
+    if (x$rhat_max > 1.1) {
+      cat("Warning: max R-hat > 1.1. Chains may not have converged.\n")
+    }
+  }
 
   if (x$ess_min < 100) {
     cat("Warning: minimum ESS < 100. Consider increasing n_mcmc or burnin.\n")
@@ -461,17 +623,20 @@ summary.hsreg <- function(object, level = object$level, ...) {
   )
 
   result <- structure(list(
-    coef_table = coef_table,
-    sigma2     = object$sigma2,
-    tau2       = object$tau2,
-    n          = object$n,
-    p          = object$p,
-    p_pen      = object$p_pen,
-    n_mcmc     = object$n_mcmc,
-    ess_min    = object$ess_min,
-    ess_sigma2 = object$ess_sigma2,
-    ess_tau2   = object$ess_tau2,
-    level      = level
+    coef_table   = coef_table,
+    sigma2       = object$sigma2,
+    tau2         = object$tau2,
+    n            = object$n,
+    p            = object$p,
+    p_pen        = object$p_pen,
+    n_mcmc       = object$n_mcmc,
+    chains       = object$chains,
+    total_draws  = object$total_draws,
+    rhat_max     = object$rhat_max,
+    ess_min      = object$ess_min,
+    ess_sigma2   = object$ess_sigma2,
+    ess_tau2     = object$ess_tau2,
+    level        = level
   ), class = "summary.hsreg")
 
   return(result)
@@ -488,11 +653,20 @@ summary.hsreg <- function(object, level = object$level, ...) {
 #' @export
 print.summary.hsreg <- function(x, ...) {
   cat("\nHorseshoe prior regression summary\n\n")
-  cat(sprintf("  n = %d, p = %d (%d penalized), n_mcmc = %d\n",
-              x$n, x$p, x$p_pen, x$n_mcmc))
+  if (!is.null(x$chains) && x$chains > 1L) {
+    cat(sprintf("  n = %d, p = %d (%d penalized), %d chains x %d = %d total draws\n",
+                x$n, x$p, x$p_pen, x$chains, x$n_mcmc, x$total_draws))
+  } else {
+    cat(sprintf("  n = %d, p = %d (%d penalized), n_mcmc = %d\n",
+                x$n, x$p, x$p_pen, x$n_mcmc))
+  }
   cat(sprintf("  sigma^2 = %.4f, tau^2 = %.6f\n", x$sigma2, x$tau2))
-  cat(sprintf("  Min ESS = %.0f, ESS(sigma^2) = %.0f, ESS(tau^2) = %.0f\n\n",
+  cat(sprintf("  Min ESS = %.0f, ESS(sigma^2) = %.0f, ESS(tau^2) = %.0f\n",
               x$ess_min, x$ess_sigma2, x$ess_tau2))
+  if (!is.null(x$rhat_max)) {
+    cat(sprintf("  Max R-hat = %.3f\n", x$rhat_max))
+  }
+  cat("\n")
   cat(sprintf("Coefficients (%g%% credible intervals):\n", x$level * 100))
   print(x$coef_table)
   invisible(x)

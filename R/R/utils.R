@@ -239,3 +239,69 @@ hs_quantile_pair <- function(v, lo_prob, hi_prob) {
     ess_min    = ess_min
   )
 }
+
+
+#' Gelman-Rubin R-hat for a Single Parameter
+#'
+#' Computes the potential scale reduction factor (R-hat) from multiple
+#' independent MCMC chains for a single scalar parameter. Values close to
+#' 1.0 indicate convergence; values > 1.1 suggest the chains have not mixed.
+#'
+#' Uses the standard split-chain R-hat formula:
+#' \deqn{W = \text{mean within-chain variance}}
+#' \deqn{B = n \cdot \text{var(chain means)}}
+#' \deqn{\hat{V} = (1 - 1/n) W + (1/n) B}
+#' \deqn{\hat{R} = \sqrt{\hat{V} / W}}
+#'
+#' @param chain_list A list of numeric vectors, one per chain. Each vector
+#'   contains the posterior draws for the same parameter from an independent
+#'   chain. All chains must have the same length.
+#'
+#' @return A scalar numeric: the estimated R-hat. Returns \code{NaN} if
+#'   within-chain variance is zero (constant chains).
+#'
+#' @keywords internal
+.hs_rhat <- function(chain_list) {
+  m <- length(chain_list)           # number of chains
+  n <- length(chain_list[[1]])      # draws per chain
+
+  # Within-chain variance: mean of per-chain variances
+  chain_vars  <- vapply(chain_list, stats::var, numeric(1))
+  W <- mean(chain_vars)
+
+  # Between-chain variance: n * variance of chain means
+  chain_means <- vapply(chain_list, mean, numeric(1))
+  B <- n * stats::var(chain_means)
+
+  # Pooled posterior variance estimate
+  V_hat <- (1 - 1 / n) * W + (1 / n) * B
+
+  # R-hat
+  sqrt(V_hat / W)
+}
+
+
+#' Gelman-Rubin R-hat for Each Row of Per-Chain Draw Matrices
+#'
+#' Vectorized R-hat computation across all parameters (rows of the draw
+#' matrices). Takes a list of \code{p x n_mcmc} matrices (one per chain)
+#' and returns R-hat for each of the \code{p} parameters.
+#'
+#' @param per_chain_matrices A list of numeric matrices, each of dimension
+#'   \code{p x n_mcmc}. One matrix per chain.
+#'
+#' @return A numeric vector of length \code{p}: R-hat for each parameter.
+#'
+#' @keywords internal
+.hs_rhat_vector <- function(per_chain_matrices) {
+  p <- nrow(per_chain_matrices[[1]])
+  rhat <- numeric(p)
+
+  for (j in seq_len(p)) {
+    # Extract row j from each chain's matrix → list of numeric vectors
+    chain_list_j <- lapply(per_chain_matrices, function(mat) mat[j, ])
+    rhat[j] <- .hs_rhat(chain_list_j)
+  }
+
+  rhat
+}

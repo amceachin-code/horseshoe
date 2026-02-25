@@ -1,6 +1,6 @@
 Package: hsreg
 Title: Bayesian Linear Regression with the Horseshoe Prior
-Version: 1.0.0
+Version: 1.1.0
 Authors@R: person("Andrew", "McEachin", role = c("aut", "cre"),
                   email = "andrew.mceachin@gmail.com")
 Description: Gibbs sampler for Bayesian linear regression with the horseshoe
@@ -11,13 +11,13 @@ Description: Gibbs sampler for Bayesian linear regression with the horseshoe
     parameters), convergence diagnostics via effective sample size (ESS),
     posterior credible intervals, CATE extraction for multi-arm treatment
     designs, and full S3 method support (print, summary, predict, coef,
-    vcov, confint). Depends only on base R.
+    vcov, confint). Depends only on base R packages.
 License: GPL (>= 3) + file LICENSE
 URL: https://github.com/amceachin-code/horseshoe
 BugReports: https://github.com/amceachin-code/horseshoe/issues
 Encoding: UTF-8
 Depends: R (>= 3.5.0)
-Imports: stats, utils, tools
+Imports: stats, utils, tools, parallel
 Suggests: testthat (>= 3.0.0), knitr, rmarkdown
 RoxygenNote: 7.3.3
 VignetteBuilder: knitr

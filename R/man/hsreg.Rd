@@ -18,7 +18,9 @@ hsreg(
   seed = NULL,
   saving = NULL,
   varnames = NULL,
-  verbose = TRUE
+  verbose = TRUE,
+  chains = 1,
+  cores = NULL
 )
 }
 \arguments{
@@ -36,11 +38,12 @@ local shrinkage. Default: 1.}
 \item{tau_scale}{Positive scalar. Scale of the half-Cauchy prior on
 global shrinkage. Default: 1.}
 
-\item{n_mcmc}{Positive integer. Number of post-burnin MCMC draws. Default: 1000.}
+\item{n_mcmc}{Positive integer. Number of post-burnin MCMC draws per chain.
+When \code{chains > 1}, total draws = \code{chains * n_mcmc}. Default: 1000.}
 
-\item{burnin}{Non-negative integer. Burnin iterations. Default: 500.}
+\item{burnin}{Non-negative integer. Burnin iterations (per chain). Default: 500.}
 
-\item{thin}{Positive integer. Thinning interval. Default: 1.}
+\item{thin}{Positive integer. Thinning interval (per chain). Default: 1.}
 
 \item{level}{Numeric in (0, 1). Credible interval level. Default: 0.95.}
 
@@ -60,6 +63,19 @@ the coefficients. If \code{NULL}, uses \code{colnames(X)} or generates
 \code{X1, X2, ...}. Default: NULL.}
 
 \item{verbose}{Logical. Print progress. Default: TRUE.}
+
+\item{chains}{Positive integer. Number of independent MCMC chains. Each
+chain runs a full \code{n_mcmc} post-burnin draws. When \code{chains = 1}
+(default), behavior is bit-for-bit identical to single-chain mode. Per-chain
+seeds are derived from the master Mersenne Twister stream (not L'Ecuyer-CMRG),
+which is sufficient for typical use (2-10 chains). Default: 1.}
+
+\item{cores}{Positive integer or \code{NULL}. Number of parallel workers for
+multi-chain runs. If \code{NULL} (default), auto-detects as
+\code{max(1, floor(detectCores(logical = FALSE) / 2))}, capped at
+\code{chains}. Uses PSOCK clusters for cross-platform compatibility
+(works on Windows, macOS, and Linux). When \code{cores = 1}, chains run
+sequentially with no parallel overhead. Default: NULL.}
 }
 \value{
 An S3 object of class \code{"hsreg"}, which is a list with:
@@ -84,6 +100,15 @@ An S3 object of class \code{"hsreg"}, which is a list with:
     \item{varnames}{Character vector: coefficient names.}
     \item{seed, rng_state}{Seed and RNG state for reproducibility.}
     \item{n_chol_fallback}{Integer: Cholesky ridge fallback count.}
+    \item{chains}{Integer: number of chains run.}
+    \item{cores}{Integer: number of parallel workers used.}
+    \item{total_draws}{Integer: total MCMC draws (\code{chains * n_mcmc}).}
+    \item{rhat_beta}{Named numeric vector: Gelman-Rubin R-hat per coefficient.
+      \code{NULL} if \code{chains = 1}.}
+    \item{rhat_sigma2, rhat_tau2}{Scalar R-hat for variance parameters.
+      \code{NULL} if \code{chains = 1}.}
+    \item{rhat_max}{Scalar: maximum R-hat across all parameters.
+      \code{NULL} if \code{chains = 1}.}
     \item{ess_beta}{Named numeric vector: ESS per coefficient.}
     \item{ess_sigma2, ess_tau2, ess_min}{ESS diagnostics.}
     \item{X, y}{Stored data (for \code{predict}).}
